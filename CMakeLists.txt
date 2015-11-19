@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 2.8.4)
 project( CrispEdgeDetection )
 find_package( OpenCV REQUIRED )
+find_package(Boost COMPONENTS system filesystem REQUIRED)
 add_executable( CrispEdgeDetection CrispEdgeDetection.cpp )
-target_link_libraries( CrispEdgeDetection ${OpenCV_LIBS} )
+target_link_libraries( CrispEdgeDetection ${OpenCV_LIBS} ${Boost_LIBRARIES})
