@@ -6,11 +6,15 @@
 using namespace cv;
 using namespace std;
 
+const int lowThreshold = 55;
+const int ratio = 3;
 Mat ProcessSingleImage(Mat src) {
     assert(src.data);
 
-    // TODO: Detect edges.
-    return src;
+    Mat edges; cvtColor(src, edges, CV_BGR2GRAY);
+    blur(edges, edges, Size(3,3));
+    Canny(edges, edges, lowThreshold, lowThreshold*ratio, 3);
+    return edges;
 }
 int main(int argc, char** argv) {
     if (argc < 2) {
