@@ -13,6 +13,10 @@ Mat dstretch(Mat& input) {
   Mat empty;
   return dstretch(input, empty, empty);
 }
+Mat dstretch(Mat& input, Mat& targetMean) {
+  Mat empty;
+  return dstretch(input, targetMean, empty);
+}
 Mat dstretch(Mat& input, Mat& targetMean, Mat& targetSigma)
 {
    CV_Assert(input.channels() > 1);

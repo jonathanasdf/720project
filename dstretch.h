@@ -12,6 +12,7 @@ targetSigma : n x 1 vector containing desired sigma for each channel of the dstr
 returns floating point dstretched image
 */
 Mat dstretch(Mat& input);
+Mat dstretch(Mat& input, Mat& targetMean);
 Mat dstretch(Mat& input, Mat& targetMean, Mat& targetSigma);
 
 #endif // _720PROJECT_DSTRETCH_H

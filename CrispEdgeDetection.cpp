@@ -20,7 +20,7 @@ using namespace std;
 const double PI = acos(-1.);
 const double EPS = 1e-9;
 // Number of pairs of pixels to sample for density estimation
-const int NUM_SAMPLES = 1000;
+const int NUM_SAMPLES = 10000;
 RNG rng;
 // Feature evaluation functions
 const vector<shared_ptr<Feature> > features = {
@@ -56,46 +56,47 @@ vector<pair<int, int> > generateSamples(int nrows, int ncols, int nsamples) {
 
 
 /*** Computation of PMI ***/
-double evaluateP(const Mat &x, const vector<Mat> &samples, const Mat& bandwidth) {
+double evaluateP(const Mat &x, const Mat &samples, flann::Index *kdTree, const Mat& bandwidth) {
+  double radius; minMaxIdx(bandwidth, NULL, &radius);
+  vector<int> indices;
+  vector<float> dists;
+  kdTree->radiusSearch(x, indices, dists, radius*radius, samples.rows);
+
   Mat bw; hconcat(bandwidth, bandwidth, bw);
 
   double res = 0;
-  for (int i=0; i < samples.size(); i++) {
-    Mat d = ((x - samples[i]) / bw);
+  for (int i=0; i < indices.size(); i++) {
+    if (i != 0 && dists[i] == 0) break;
+    Mat d = ((x - samples.row(indices[i]))) / bw;
     res += max(0., (1 - d.dot(d))*3/4);
   }
   return res;
 }
 
-vector<pair<Mat, double> > marginalCache;
-double computeMarginal(const Mat &f, const vector<Mat> &samples, const Mat& bandwidth) {
-  for (int i=0; i < marginalCache.size(); i++) {
-    if (norm(marginalCache[i].first, f) < EPS) {
-      return marginalCache[i].second;;
-    }
-  }
+map<int, double> marginalCache;
+double computeMarginal(const vector<Mat> &f, int p, const Mat &samples, const Mat& bandwidth) {
+  if (marginalCache.count(p)) return marginalCache[p];
 
   double res = 0;
-  for (int i = 0; i < samples.size(); i++) {
-    Mat a = samples[i](Range::all(), Range(0, f.cols)),
-        b = samples[i](Range::all(), Range(f.cols, 2*f.cols));
-    Mat d = (f - a) / bandwidth,
-        o = (Mat::ones(1, f.cols, CV_32F) - b) / bandwidth,
-        z = (Mat::zeros(1, f.cols, CV_32F) - b) / bandwidth;
+  for (int i = 0; i < samples.rows; i++) {
+    Mat a = samples(Range(i, i+1), Range(0, f[p].cols)),
+        b = samples(Range(i, i+1), Range(f[p].cols, 2*f[p].cols));
+    Mat d = (f[p] - a) / bandwidth,
+        o = (Mat::ones(1, f[p].cols, CV_32F) - b) / bandwidth,
+        z = (Mat::zeros(1, f[p].cols, CV_32F) - b) / bandwidth;
     res += max(0., (1 - d.dot(d) - (o.mul(o).mul(o) - z.mul(z).mul(z)).dot(bandwidth)/3)*3/4);
   }
 
-  marginalCache.push_back(make_pair(f, res));
-  return res;
+  return marginalCache[p] = res;
 }
 
 const double rho = 1.25;
 const double regularizer = 100;
-double computePMI(const Mat &f1, const Mat &f2, const vector<Mat> &samples, const Mat &bandwidth) {
-  Mat x; hconcat(f1, f2, x);
-  double P12 = evaluateP(x, samples, bandwidth),
-         P1 = computeMarginal(f1, samples, bandwidth),
-         P2 = computeMarginal(f2, samples, bandwidth);
+double computePMI(const vector<Mat> &f, int p1, int p2, const Mat &samples, flann::Index *kdTree, const Mat &bandwidth) {
+  Mat x; hconcat(f[p1], f[p2], x);
+  double P12 = evaluateP(x, samples, kdTree, bandwidth),
+         P1 = computeMarginal(f, p1, samples, bandwidth),
+         P2 = computeMarginal(f, p2, samples, bandwidth);
   return (pow(P12, rho) + regularizer)/(P1*P2 + regularizer);
 }
 
@@ -103,23 +104,23 @@ double computePMI(const Mat &f1, const Mat &f2, const vector<Mat> &samples, cons
 
 /*** Calculation of affinity matrix ***/
 const int window = 5;
-SMatrix* calculateAffinityMatrix(const Mat &src, const vector<vector<Mat> > &sampledFeatures) {
-  marginalCache.clear();
-
+SMatrix* calculateAffinityMatrix(const Mat &src, const vector<Mat> &sampledFeatures, vector<flann::Index*> kdTrees, bool debug) {
   int numPixels = src.rows * src.cols;
   int* nz = new int[numPixels];
   int** cols = new int*[numPixels];
   double** vals = new double*[numPixels];
 
-  vector<Mat> f[numPixels];
-  for (int i=0; i < numPixels; i++) {
-    for (int j=0; j < features.size(); j++) {
-      Mat ff = features[j]->evaluate(i);
-      Mat check; inRange(ff, 0, 1, check);
-      assert(countNonZero(check) == ff.total());
-      f[i].push_back(ff);
+  vector<vector<Mat> > f(features.size(), vector<Mat>(numPixels));
+  for (int i=0; i < features.size(); i++) {
+    for (int j=0; j < numPixels; j++) {
+      f[i][j] = features[i]->evaluate(j);
+      Mat check; inRange(f[i][j], 0, 1, check);
+      assert(countNonZero(check) == f[i][j].total());
     }
   }
+
+  marginalCache.clear();
+  map<long long, double> pmiCache;
 
   double mn = 1e18, mx = -1e18;
   for (int i=0; i < numPixels; i++) {
@@ -127,6 +128,8 @@ SMatrix* calculateAffinityMatrix(const Mat &src, const vector<vector<Mat> > &sam
     vector<int> col;
     vector<double> val;
     int r = i / src.cols, c = i % src.cols;
+    if (debug) if (c%10 == 0) cout << "Computing PMI values for pixel (" << r << "," << c << ")" << endl;
+
     for (int u = -window; u <= window; u++) {
       int rr = r + u;
       if (rr < 0 || rr >= src.rows) continue;
@@ -135,12 +138,19 @@ SMatrix* calculateAffinityMatrix(const Mat &src, const vector<vector<Mat> > &sam
         if (cc < 0 || cc >= src.cols) continue;
         if (u*u+v*v > window*window) continue;
 
+        int ii = rr*src.cols+cc;
+        int key = ((long long)min(i, ii)) * numPixels + max(i, ii);
+
         double pmi = 1;
-        for (int j=0; j < features.size(); j++) {
-          pmi *= computePMI(f[i][j], f[rr*src.cols+cc][j], sampledFeatures[j], bandwidth[j]);
+        if (i > ii) pmi = pmiCache[key];
+        else {
+          for (int j=0; j < features.size(); j++) {
+            pmi *= computePMI(f[j], i, ii, sampledFeatures[j], kdTrees[j], bandwidth[j]);
+          }
+          pmiCache[key] = pmi;
+          mn = min(mn, pmi);
+          mx = max(mx, pmi);
         }
-        mn = min(mn, pmi);
-        mx = max(mx, pmi);
 
         nz[i]++;
         col.push_back(rr*src.cols + cc);
@@ -171,15 +181,21 @@ SMatrix* calculateAffinityMatrix(const Mat &src, const vector<vector<Mat> > &sam
 Mat ProcessSingleImage(const Mat &src, bool debug = false) {
   assert(src.data);
 
+  Mat img;
+  src.copyTo(img);
+  // downsample image for speed
+  resize(img, img, Size(), 0.5, 0.5);
+
   // sample pairs of pixels
   if (debug) cout << "Sampling " << NUM_SAMPLES << " pairs of pixel locations..." << endl;
-  vector<pair<int, int> > samples = generateSamples(src.rows, src.cols, NUM_SAMPLES);
+  vector<pair<int, int> > samples = generateSamples(img.rows, img.cols, NUM_SAMPLES);
 
   // convert pixels into feature space vector
   if (debug) cout << "Converting pixel pairs into feature space vectors..." << endl;
-  vector<vector<Mat> > sampledFeatures;
+  vector<Mat> sampledFeatures;
+  vector<flann::Index*> kdTrees;
   for (int i=0; i < features.size(); i++) {
-    features[i]->resetImage(src);
+    features[i]->resetImage(img);
     vector<Mat> converted;
     for (int j=0; j < samples.size(); j++) {
       Mat f1 = features[i]->evaluate(samples[j].first),
@@ -190,17 +206,24 @@ Mat ProcessSingleImage(const Mat &src, bool debug = false) {
       converted.push_back(x1);
       converted.push_back(x2);
     }
-    sampledFeatures.push_back(converted);
+    Mat data; vconcat(converted, data);
+    data.convertTo(data, CV_32F);
+    sampledFeatures.push_back(data);
+    kdTrees.push_back(new flann::Index(sampledFeatures.back(), flann::KDTreeIndexParams()));
   }
 
   // calculate affinity matrix
   if (debug) cout << "Calculating affinity matrix..." << endl;
-  SMatrix* W = calculateAffinityMatrix(src, sampledFeatures);
+  SMatrix* W = calculateAffinityMatrix(img, sampledFeatures, kdTrees, debug);
+
+  for (int i=0; i < features.size(); i++) {
+    delete kdTrees[i];
+  }
 
   // run spectral clustering via gPb
   Mat gPb, gPb_thin;
   vector<Mat> gPb_ori;
-  globalPb(src, W, gPb, gPb_thin, gPb_ori);
+  globalPb(img, W, gPb, gPb_thin, gPb_ori);
 
   if (debug) cout << "Completed." << endl;
 

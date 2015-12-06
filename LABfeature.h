@@ -10,7 +10,8 @@ class LABFeature : public Feature {
   virtual void resetImage(Mat img) override {
     Mat imgLab;
     cvtColor(img, imgLab, CV_BGR2Lab);
-    _img = dstretch(imgLab);
+    Mat means = Mat::ones(3, 1, CV_32F)*128;
+    _img = dstretch(imgLab, means);
   }
   // Evaluates the given feature value at linear pixel id
   virtual Mat evaluate(int id) override;
