@@ -4,7 +4,7 @@ using namespace std;
 
 namespace cv
 {
-void buildW(const cv::Mat & input, const SMatrix* W, double** &T, int & wz, double* &D)
+void buildW(const SMatrix* W, double** &T, int & wz, double* &D)
 {
     //output assignment
     wz = 0;

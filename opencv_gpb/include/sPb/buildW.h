@@ -16,5 +16,5 @@
 
 namespace cv
 {
-void buildW(const cv::Mat & input, const SMatrix* Aff, double** &T, int & wz, double* &D);
+void buildW(const SMatrix* Aff, double** &T, int & wz, double* &D);
 }

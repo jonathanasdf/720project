@@ -2,6 +2,7 @@
 #define _720PROJECT_FEATURE_H
 
 #include <opencv2/opencv.hpp>
+#include "dstretch.h"
 using namespace cv;
 
 class Feature {

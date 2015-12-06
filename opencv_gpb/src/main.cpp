@@ -106,7 +106,7 @@ int main(int argc, char** argv) {
 
     cv::imshow("Original", img0);
     cv::imshow("gPb",  gPb);
-    cv::imshow("gPb_thin", gPb_thin);
+//    cv::imshow("gPb_thin", gPb_thin);
     cv::imshow("ucm", ucm2);
     cv::setMouseCallback("ucm", on_mouse, 0);
 
