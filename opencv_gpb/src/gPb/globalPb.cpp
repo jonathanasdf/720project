@@ -453,7 +453,7 @@ multiscalePb(const cv::Mat & image,
     mPb_all.clear();
 }
 
-void gPb_gen(const cv::Mat & mPb_max,
+void gPb_gen(const cv::Mat & image,
              const double* weights,
              const vector<cv::Mat> & sPb,
              vector<vector<cv::Mat> > & gradients,
@@ -467,15 +467,15 @@ void gPb_gen(const cv::Mat & mPb_max,
 
     gPb_ori.resize(n_ori);
     for(size_t idx=0; idx<n_ori; idx++) {
-        gPb_ori[idx] = cv::Mat::zeros(mPb_max.rows, mPb_max.cols, CV_32FC1);
+        gPb_ori[idx] = cv::Mat::zeros(image.rows, image.cols, CV_32FC1);
         for(size_t ch=0; ch<gradients.size(); ch++)
             cv::addWeighted(gPb_ori[idx], 1.0, gradients[ch][idx], weights[ch], 0.0, gPb_ori[idx]);
 
         if(idx == 0)
             gPb_ori[idx].copyTo(gPb);
         else
-            for(size_t i=0; i<mPb_max.rows; i++)
-                for(size_t j=0; j<mPb_max.cols; j++)
+            for(size_t i=0; i<image.rows; i++)
+                for(size_t j=0; j<image.cols; j++)
                     if(gPb.at<float>(i,j) < gPb_ori[idx].at<float>(i,j))
                         gPb.at<float>(i,j) = gPb_ori[idx].at<float>(i,j);
     }
@@ -561,9 +561,5 @@ globalPb(const cv::Mat & image,
 
     //globalPb - gPb
     gPb_gen(image, weights, sPb, gradients, gPb_ori, gPb);
-    //clean up
-    sPb.clear();
-    gradients.clear();
-    delete[] weights;
 }
 }
