@@ -20,7 +20,7 @@ using namespace std;
 const double PI = acos(-1.);
 const double EPS = 1e-9;
 // Number of pairs of pixels to sample for density estimation
-const int NUM_SAMPLES = 10000;
+const int NUM_SAMPLES = 1000;
 RNG rng;
 // Feature evaluation functions
 const vector<shared_ptr<Feature> > features = {
@@ -28,7 +28,7 @@ const vector<shared_ptr<Feature> > features = {
 };
 // Vector for bandwidth for Epanechnikov kernel for each filter
 const vector<Mat> bandwidth = {
-  Mat(Vec3f{0.1, 0.01, 0.01}).t()
+  Mat(Vec3f{0.1, 0.05, 0.05}).t()
 };
 
 
@@ -81,8 +81,11 @@ double computeMarginal(const vector<Mat> &f, int p, const Mat &samples, const Ma
   for (int i = 0; i < samples.rows; i++) {
     Mat a = samples(Range(i, i+1), Range(0, f[p].cols)),
         b = samples(Range(i, i+1), Range(f[p].cols, 2*f[p].cols));
-    Mat d = (f[p] - a) / bandwidth,
-        o = (Mat::ones(1, f[p].cols, CV_32F) - b) / bandwidth,
+    Mat d = (f[p] - a) / bandwidth;
+    double mx; minMaxIdx(d, NULL, &mx);
+    if (mx > 1) continue;
+
+    Mat o = (Mat::ones(1, f[p].cols, CV_32F) - b) / bandwidth,
         z = (Mat::zeros(1, f[p].cols, CV_32F) - b) / bandwidth;
     res += max(0., (1 - d.dot(d) - (o.mul(o).mul(o) - z.mul(z).mul(z)).dot(bandwidth)/3)*3/4);
   }
@@ -91,7 +94,7 @@ double computeMarginal(const vector<Mat> &f, int p, const Mat &samples, const Ma
 }
 
 const double rho = 1.25;
-const double regularizer = 100;
+const double regularizer = 1e-3;
 double computePMI(const vector<Mat> &f, int p1, int p2, const Mat &samples, flann::Index *kdTree, const Mat &bandwidth) {
   Mat x; hconcat(f[p1], f[p2], x);
   double P12 = evaluateP(x, samples, kdTree, bandwidth),
@@ -120,7 +123,7 @@ SMatrix* calculateAffinityMatrix(const Mat &src, const vector<Mat> &sampledFeatu
   }
 
   marginalCache.clear();
-  map<long long, double> pmiCache;
+  unordered_map<long long, double> pmiCache;
 
   double mn = 1e18, mx = -1e18;
   for (int i=0; i < numPixels; i++) {
@@ -142,8 +145,9 @@ SMatrix* calculateAffinityMatrix(const Mat &src, const vector<Mat> &sampledFeatu
         int key = ((long long)min(i, ii)) * numPixels + max(i, ii);
 
         double pmi = 1;
-        if (i > ii) pmi = pmiCache[key];
-        else {
+        if (i > ii) {
+          pmi = pmiCache[key];
+        } else {
           for (int j=0; j < features.size(); j++) {
             pmi *= computePMI(f[j], i, ii, sampledFeatures[j], kdTrees[j], bandwidth[j]);
           }
