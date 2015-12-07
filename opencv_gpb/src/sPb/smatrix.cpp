@@ -70,5 +70,6 @@ void SMatrix::symmetrize()
             tail[c]++;
         }
     }
+    delete tail;
 }
 

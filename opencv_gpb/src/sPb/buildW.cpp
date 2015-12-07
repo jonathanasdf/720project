@@ -17,6 +17,7 @@ void buildW(const SMatrix* W, double** &T, int & wz, double* &D)
     for(size_t row = 0; row < W->n; row++) {
         //initialize diag matrix.
         //int diag_ind = 0;
+        D[row] = 0;
         for(size_t i=0; i<W->nz[row]; i++) {
             //initialize sparse matrix.
             //if(row == W->col[row][i])
