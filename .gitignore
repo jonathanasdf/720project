@@ -34,3 +34,6 @@ install_manifest.txt
 *.exe
 *.out
 *.app
+
+# output dir
+data/BSR/extracted*

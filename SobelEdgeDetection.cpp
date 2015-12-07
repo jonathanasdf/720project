@@ -6,14 +6,24 @@
 using namespace cv;
 using namespace std;
 
-const int lowThreshold = 55;
-const int ratio = 3;
 Mat ProcessSingleImage(Mat src) {
     assert(src.data);
 
     Mat edges; cvtColor(src, edges, CV_BGR2GRAY);
     blur(edges, edges, Size(3,3));
-    Canny(edges, edges, lowThreshold, lowThreshold*ratio, 3);
+
+    Mat grad_x, grad_y;
+
+    /// Gradient X
+    Sobel(edges, grad_x, CV_16S, 1, 0);
+    convertScaleAbs(grad_x, grad_x);
+
+    /// Gradient Y
+    Sobel(edges, grad_y, CV_16S, 0, 1);
+    convertScaleAbs(grad_y, grad_y);
+
+    /// Total Gradient (approximate)
+    addWeighted(grad_x, 0.5, grad_y, 0.5, 0, edges);
     return 255-edges;
 }
 int main(int argc, char** argv) {

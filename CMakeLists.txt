@@ -10,3 +10,5 @@ add_executable(CrispEdgeDetection CrispEdgeDetection.cpp LABfeature.cpp dstretch
 target_link_libraries(CrispEdgeDetection ${OpenCV_LIBS} ${Boost_LIBRARIES} gpb)
 add_executable(CannyEdgeDetection CannyEdgeDetection.cpp )
 target_link_libraries(CannyEdgeDetection ${OpenCV_LIBS} ${Boost_LIBRARIES})
+add_executable(SobelEdgeDetection SobelEdgeDetection.cpp )
+target_link_libraries(SobelEdgeDetection ${OpenCV_LIBS} ${Boost_LIBRARIES})

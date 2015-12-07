@@ -106,7 +106,7 @@ double computePMI(const vector<Mat> &f, int p1, int p2, const Mat &samples, flan
 
 
 /*** Calculation of affinity matrix ***/
-const int window = 5;
+const int window = 4;
 SMatrix* calculateAffinityMatrix(const Mat &src, const vector<Mat> &sampledFeatures, vector<flann::Index*> kdTrees, bool debug) {
   int numPixels = src.rows * src.cols;
   int* nz = new int[numPixels];
@@ -171,7 +171,7 @@ SMatrix* calculateAffinityMatrix(const Mat &src, const vector<Mat> &sampledFeatu
 
   for (int i=0; i < numPixels; i++) {
     for (int j=0; j < nz[i]; j++) {
-      vals[i][j] = (vals[i][j] + mn) / (mx + mn);
+      vals[i][j] = (vals[i][j] - mn) / (mx - mn);
       assert(vals[i][j] >= 0 && vals[i][j] <= 1);
     }
   }
